@@ -1,0 +1,768 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#24283a">
+<meta name="description" content="Minuteurs multiples avec reprise au rechargement et notification à la fin.">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<title>⏱️ Minuteurs</title>
+<link rel="icon" type="image/png" href="minuteur-icone-512.png">
+<link rel="manifest" href="manifest.json">
+<style>
+:root { color-scheme: dark; font-family: "Segoe UI", system-ui, sans-serif; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: linear-gradient(160deg, #171a26 0%, #24283a 100%);
+  color: #e2e8f0;
+  padding: 16px;
+}
+h1 { font-size: 22px; margin: 14px 0 22px; color: #fbbf24; text-align: center; }
+main {
+  width: 100%;
+  max-width: 480px;
+  background: #2b3044;
+  border: 1px solid #3b4257;
+  border-radius: 14px;
+  padding: 20px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+}
+.groupe { margin-bottom: 18px; }
+.groupe > label {
+  display: block;
+  font-size: 13px;
+  font-weight: bold;
+  color: #94a3b8;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.champ {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 18px;
+  color: #e2e8f0;
+  background: #1e2230;
+  border: 1px solid #3b4257;
+  border-radius: 8px;
+  outline: none;
+}
+.champ:focus { border-color: #14b8a6; }
+.champ::placeholder { color: #556; }
+.triple { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+.triple .col { text-align: center; }
+.triple label { display: block; font-size: 12px; font-weight: bold; color: #94a3b8; margin-bottom: 6px; }
+.choix-type { display: flex; gap: 10px; }
+.choix-type button {
+  flex: 1;
+  padding: 10px;
+  font-size: 15px;
+  font-weight: bold;
+  color: #94a3b8;
+  background: #1e2230;
+  border: 1px solid #3b4257;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.choix-type button:hover { color: #e2e8f0; }
+.choix-type button.type-choisi {
+  color: #fff;
+  background: #0f766e;
+  border-color: #14b8a6;
+}
+#btnCreer, #btnSons, #btnNotifs {
+  width: 100%;
+  padding: 12px;
+  font-size: 16px;
+  font-weight: bold;
+  color: #fff;
+  background: #0f766e;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+#btnCreer:hover, #btnSons.actif:hover, #btnNotifs.actif:hover { background: #14b8a6; }
+#btnCreer:active, #btnSons:active, #btnNotifs:active { transform: translateY(1px); }
+#btnSons, #btnNotifs {
+  margin-top: 8px;
+  font-size: 13px;
+  padding: 9px;
+  background: #3b4257;
+}
+#btnSons.actif, #btnNotifs.actif { background: #0f766e; }
+#erreur {
+  margin-top: 10px;
+  color: #f43f5e;
+  font-size: 14px;
+  text-align: center;
+  display: none;
+}
+#liste { margin-top: 24px; }
+.carte {
+  position: relative;
+  background: #1e2230;
+  border: 1px solid #3b4257;
+  border-left: 4px solid #14b8a6;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+.carte.termine { border-left-color: #f43f5e; }
+.carte.pause { border-left-color: #fbbf24; }
+.carte .nom {
+  font-size: 13px;
+  color: #94a3b8;
+  margin-bottom: 4px;
+  padding-right: 28px;
+  word-wrap: break-word;
+}
+.carte .affichage {
+  font-size: 30px;
+  font-weight: bold;
+  color: #2dd4bf;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 1px;
+}
+.carte.termine .affichage { color: #f43f5e; }
+.barre {
+  height: 5px;
+  background: #1e2230;
+  border: 1px solid #3b4257;
+  border-radius: 3px;
+  margin: 8px 0;
+  overflow: hidden;
+}
+.barre > div {
+  height: 100%;
+  width: 0;
+  background: #14b8a6;
+  transition: width 0.25s linear;
+}
+.carte.termine .barre > div { background: #f43f5e; }
+.actions { display: flex; gap: 8px; }
+.actions button {
+  flex: 1;
+  padding: 8px;
+  font-size: 14px;
+  font-weight: bold;
+  color: #fff;
+  background: #0f766e;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.actions button:hover { background: #14b8a6; }
+.actions button:active { transform: translateY(1px); }
+.actions .btn-retour { background: #3b4257; }
+.actions .btn-retour:hover { background: #475569; }
+.carte button.croix {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  font-size: 13px;
+  color: #94a3b8;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  flex: none;
+}
+.carte button.croix:hover { color: #f43f5e; background: #2b3044; }
+#confirmOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 12, 20, 0.60);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 1000;
+  opacity: 1;
+  transition: opacity 0.25s ease;
+}
+#confirmOverlay[hidden] { opacity: 0; visibility: hidden; }
+.confirm-boite {
+  position: relative;
+  width: min(380px, calc(100vw - 40px));
+  background: #2b3044;
+  border: 2px solid #14b8a6;
+  border-radius: 14px;
+  padding: 20px;
+  text-align: center;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
+.confirm-boite h3 { font-size: 17px; color: #2dd4bf; margin-bottom: 12px; }
+.confirm-boite p { font-size: 15px; color: #e2e8f0; margin-bottom: 18px; }
+.confirm-croix {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 34px;
+  height: 34px;
+  font-size: 14px;
+  color: #94a3b8;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.confirm-croix:hover { color: #f43f5e; background: #1e2230; }
+.confirm-actions { display: flex; gap: 10px; justify-content: center; }
+.confirm-actions button {
+  flex: 1;
+  padding: 10px;
+  font-size: 15px;
+  font-weight: bold;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+#confirmNon { background: #3b4257; }
+#confirmNon:hover { background: #475569; }
+#confirmOui { background: #0f766e; }
+#confirmOui:hover { background: #14b8a6; }
+footer { margin-top: 18px; font-size: 12px; color: #64748b; text-align: center; }
+.aucun { text-align: center; color: #64748b; font-size: 14px; padding: 12px 0; }
+@media (max-width: 420px) {
+  h1 { font-size: 19px; }
+  .carte .affichage { font-size: 25px; }
+}
+</style>
+</head>
+<body>
+<h1 id="titrePrincipal">⏱️ Minuteurs</h1>
+<main>
+  <div class="groupe">
+    <label id="labelNom" for="mNom">Nom du minuteur (facultatif)</label>
+    <input id="mNom" class="champ" type="text" maxlength="100" placeholder="Ex. : Four, pause café…">
+  </div>
+  <div class="groupe">
+    <label>Type</label>
+    <div class="choix-type">
+      <button id="typeMinuteur" class="type-choisi" type="button">⏱️ Minuteur</button>
+      <button id="typeChrono" type="button">⏱️ Chronomètre</button>
+    </div>
+  </div>
+
+  <div class="groupe" id="groupeDuree">
+    <label for="mHeures">Durée</label>
+    <div class="triple">
+      <div class="col">
+        <label for="mHeures">Heures</label>
+        <input id="mHeures" class="champ" type="number" inputmode="numeric" min="0" step="1" placeholder="0">
+      </div>
+      <div class="col">
+        <label for="mMinutes">Minutes</label>
+        <input id="mMinutes" class="champ" type="number" inputmode="numeric" min="0" step="1" placeholder="0">
+      </div>
+      <div class="col">
+        <label for="mSecondes">Secondes</label>
+        <input id="mSecondes" class="champ" type="number" inputmode="numeric" min="0" step="1" placeholder="0">
+      </div>
+    </div>
+  </div>
+  <button id="btnCreer" type="button">➕ Créer le minuteur</button>
+  <p id="erreur"></p>
+  <div class="groupe" style="margin-top:20px">
+    <button id="btnSons" type="button">🔔 Son à la fin : activé</button>
+    <button id="btnNotifs" type="button">📣 Notifications : à demander</button>
+  </div>
+  <div id="liste"></div>
+</main>
+
+<div id="confirmOverlay" hidden>
+  <div id="confirmBoite" class="confirm-boite">
+    <button id="confirmCroix" type="button" class="confirm-croix" title="Fermer">✕</button>
+    <h3 id="confirmTitre">Confirmation</h3>
+    <p id="confirmMessage"></p>
+    <div class="confirm-actions">
+      <button id="confirmNon" type="button">Non</button>
+      <button id="confirmOui" type="button">Oui</button>
+    </div>
+  </div>
+</div>
+
+<footer>100 % local, tout reste sur votre appareil.</footer>
+
+<script>
+"use strict";
+
+const CLE_MINUTEURS = "minuteur_minuteurs";
+const CLE_SONS = "minuteur_sons";
+const erreur = document.getElementById("erreur");
+const liste = document.getElementById("liste");
+const refs = new Map();
+let minuteurs = [];
+let tictac = null;
+let typeChoisi = "minuteur";
+
+// Titre d'onglet du mode courant (aussi utilisé pour effacer l'alerte « ⏰ … »)
+function titreDuMode() {
+  return typeChoisi === "minuteur" ? "⏱️ Minuteurs" : "⏱️ Chronomètre";
+}
+
+// Titre d'onglet selon le minuteur concerné : une action sur un
+// chronomètre sauvegardé doit afficher « Chronomètre », pas le mode du formulaire
+function titreSelon(m) {
+  return m && m.type === "chrono" ? "⏱️ Chronomètre" : "⏱️ Minuteurs";
+}
+
+function majChoixType() {
+  document.getElementById("typeMinuteur").classList.toggle("type-choisi", typeChoisi === "minuteur");
+  document.getElementById("typeChrono").classList.toggle("type-choisi", typeChoisi === "chrono");
+  document.getElementById("groupeDuree").style.display = typeChoisi === "minuteur" ? "block" : "none";
+  document.getElementById("labelNom").textContent = typeChoisi === "minuteur"
+    ? "Nom du minuteur (facultatif)"
+    : "Nom du chronomètre (facultatif)";
+  document.getElementById("btnCreer").textContent = typeChoisi === "minuteur"
+    ? "➕ Créer le minuteur"
+    : "➕ Créer le chronomètre";
+  document.getElementById("titrePrincipal").textContent = typeChoisi === "minuteur"
+    ? "⏱️ Minuteurs"
+    : "⏱️ Chronomètre";
+  document.title = titreDuMode();
+}
+
+document.getElementById("typeMinuteur").addEventListener("click", function () {
+  typeChoisi = "minuteur";
+  majChoixType();
+});
+document.getElementById("typeChrono").addEventListener("click", function () {
+  typeChoisi = "chrono";
+  majChoixType();
+});
+
+/* ---------- ConfirmToast ---------- */
+const confirmOverlay = document.getElementById("confirmOverlay");
+const confirmTitre = document.getElementById("confirmTitre");
+const confirmMessage = document.getElementById("confirmMessage");
+const confirmOui = document.getElementById("confirmOui");
+const confirmNon = document.getElementById("confirmNon");
+const confirmCroix = document.getElementById("confirmCroix");
+let confirmResolution = null;
+
+function confirmToast(titre, message) {
+  return new Promise(function (resolution) {
+    confirmResolution = resolution;
+    confirmTitre.textContent = titre;
+    confirmMessage.textContent = message;
+    confirmOverlay.hidden = false;
+  });
+}
+
+function fermerConfirm(valeur) {
+  if (confirmResolution) {
+    const resoudre = confirmResolution;
+    confirmResolution = null;
+    confirmOverlay.hidden = true;
+    resoudre(valeur);
+  }
+}
+
+confirmOui.addEventListener("click", function () { fermerConfirm(true); });
+confirmNon.addEventListener("click", function () { fermerConfirm(false); });
+confirmCroix.addEventListener("click", function () { fermerConfirm(null); });
+confirmOverlay.addEventListener("click", function (e) {
+  if (e.target === confirmOverlay) fermerConfirm(null);
+});
+document.addEventListener("keydown", function (e) {
+  if (e.key === "Escape" && !confirmOverlay.hidden) fermerConfirm(null);
+});
+
+/* ---------- Stockage ---------- */
+function lireMinuteur() {
+  try {
+    const brut = localStorage.getItem(CLE_MINUTEURS);
+    const donnees = brut ? JSON.parse(brut) : [];
+    return Array.isArray(donnees) ? donnees : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function sauverMinuteur() {
+  localStorage.setItem(CLE_MINUTEURS, JSON.stringify(minuteurs));
+}
+
+function sonsActifs() {
+  return localStorage.getItem(CLE_SONS) !== "0";
+}
+
+function majBoutonSons() {
+  const btn = document.getElementById("btnSons");
+  btn.classList.toggle("actif", sonsActifs());
+  btn.textContent = sonsActifs() ? "🔔 Son à la fin : activé" : "🔕 Son à la fin : désactivé";
+}
+
+document.getElementById("btnSons").addEventListener("click", function () {
+  localStorage.setItem(CLE_SONS, sonsActifs() ? "0" : "1");
+  majBoutonSons();
+});
+
+/* ---------- Notifications ---------- */
+function majBoutonNotifs() {
+  const btn = document.getElementById("btnNotifs");
+  let etat = "à demander";
+  if (!("Notification" in window)) {
+    etat = "non prises en charge";
+    btn.disabled = true;
+  } else if (Notification.permission === "granted") {
+    etat = "activées";
+  } else if (Notification.permission === "denied") {
+    etat = "refusées";
+    btn.disabled = true;
+  }
+  btn.classList.toggle("actif", etat === "activées");
+  btn.textContent = "📣 Notifications : " + etat;
+}
+
+document.getElementById("btnNotifs").addEventListener("click", function () {
+  if (!("Notification" in window)) return;
+  Notification.requestPermission().then(function () {
+    majBoutonNotifs();
+    if (Notification.permission === "granted") {
+      new Notification("⏱️ Minuteurs", { body: "Les notifications sont activées." });
+    }
+  });
+});
+
+function notifier(texte) {
+  if (!("Notification" in window) || Notification.permission !== "granted") return;
+  try {
+    new Notification("⏰ " + texte, { tag: "minuteur-fin", renotify: true });
+  } catch (e) {
+    // Notification impossible : l'alerte dans le titre de l'onglet reste le repli
+  }
+}
+
+/* ---------- Son de fin ---------- */
+let rappelBip = null;
+
+// Le bip de fin se répète tant que l'utilisateur n'est pas intervenu dans la page
+function arreterRappelBip() {
+  if (rappelBip) {
+    clearInterval(rappelBip);
+    rappelBip = null;
+  }
+}
+
+["pointerdown", "keydown", "touchstart", "wheel"].forEach(function (evenement) {
+  document.addEventListener(evenement, arreterRappelBip, { passive: true });
+});
+
+function bipper() {
+  try {
+    const contexte = new (window.AudioContext || window.webkitAudioContext)();
+    [0, 0.3, 0.6].forEach(function (t) {
+      const oscillateur = contexte.createOscillator();
+      const gain = contexte.createGain();
+      oscillateur.type = "sine";
+      oscillateur.frequency.value = 880;
+      oscillateur.connect(gain);
+      gain.connect(contexte.destination);
+      const debut = contexte.currentTime + t;
+      gain.gain.setValueAtTime(0.001, debut);
+      gain.gain.exponentialRampToValueAtTime(0.3, debut + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, debut + 0.22);
+      oscillateur.start(debut);
+      oscillateur.stop(debut + 0.25);
+    });
+  } catch (e) {
+    // Pas de son disponible
+  }
+}
+
+/* ---------- Minuteur ---------- */
+function lireNombre(champ) {
+  const texte = champ.value.trim();
+  if (texte === "") return 0;
+  const valeur = parseFloat(texte.replace(",", "."));
+  if (isNaN(valeur) || valeur < 0) return null;
+  return valeur;
+}
+
+function afficherErreur(message) {
+  erreur.textContent = message;
+  erreur.style.display = "block";
+}
+
+function formaterDuree(secondes) {
+  secondes = Math.max(0, Math.ceil(secondes));
+  const h = Math.floor(secondes / 3600);
+  const m = Math.floor((secondes % 3600) / 60);
+  const s = secondes % 60;
+  const p = function (n) { return String(n).padStart(2, "0"); };
+  if (h > 0) return h + ":" + p(m) + ":" + p(s);
+  return p(m) + ":" + p(s);
+}
+
+function formaterEcoule(secondes) {
+  secondes = Math.max(0, Math.floor(secondes));
+  const h = Math.floor(secondes / 3600);
+  const m = Math.floor((secondes % 3600) / 60);
+  const s = secondes % 60;
+  const p = function (n) { return String(n).padStart(2, "0"); };
+  if (h > 0) return h + ":" + p(m) + ":" + p(s);
+  return p(m) + ":" + p(s);
+}
+
+function restantDe(m) {
+  if (m.type === "chrono") {
+    return m.etat === "lance" ? (Date.now() - m.debut) / 1000 : m.restant;
+  }
+  if (m.etat !== "lance") return m.restant;
+  return Math.max(0, (m.fin - Date.now()) / 1000);
+}
+
+function creer() {
+  erreur.style.display = "none";
+  let duree = null;
+  if (typeChoisi === "minuteur") {
+    const h = lireNombre(document.getElementById("mHeures"));
+    const mn = lireNombre(document.getElementById("mMinutes"));
+    const s = lireNombre(document.getElementById("mSecondes"));
+    if (h === null || mn === null || s === null) {
+      afficherErreur("Valeurs invalides : saisissez des nombres positifs.");
+      return;
+    }
+    duree = Math.round(h * 3600 + mn * 60 + s);
+    if (duree <= 0) {
+      afficherErreur("Saisissez une durée supérieure à 0.");
+      return;
+    }
+  }
+  minuteurs.push({
+    id: Date.now() + Math.floor(Math.random() * 1000),
+    type: typeChoisi,
+    nom: document.getElementById("mNom").value.trim(),
+    duree: duree,
+    restant: typeChoisi === "chrono" ? 0 : duree,
+    etat: "arrete",
+    fin: null,
+    debut: null
+  });
+  document.getElementById("mNom").value = "";
+  document.getElementById("mHeures").value = "";
+  document.getElementById("mMinutes").value = "";
+  document.getElementById("mSecondes").value = "";
+  sauverMinuteur();
+  construireListe();
+}
+
+function basculer(m) {
+  m.restant = restantDe(m);
+  if (m.etat === "lance") {
+    m.etat = "pause";
+    m.fin = null;
+    m.debut = null;
+  } else {
+    if (m.type === "minuteur" && m.restant <= 0) return;
+    m.etat = "lance";
+    if (m.type === "minuteur") {
+      m.fin = Date.now() + m.restant * 1000;
+    } else {
+      m.debut = Date.now() - (m.restant || 0) * 1000;
+    }
+    // Efface l'alerte « ⏰ … » restée d'une fin précédente,
+    // avec le titre du minuteur relancé (chrono sauvegardé → « Chronomètre »)
+    document.title = titreSelon(m);
+  }
+  sauverMinuteur();
+  construireListe();
+}
+
+function reinitialiser(m) {
+  m.etat = "arrete";
+  m.restant = m.type === "chrono" ? 0 : m.duree;
+  m.fin = null;
+  m.debut = null;
+  // Remise à zéro : le titre revient au mode du formulaire (choix de la page)
+  document.title = titreDuMode();
+  sauverMinuteur();
+  construireListe();
+}
+
+function supprimer(m) {
+  confirmToast("🗑️ Supprimer", "Supprimer « " + (m.nom || "Minuteur") + " » ?").then(function (reponse) {
+    if (reponse !== true) return;
+    minuteurs = minuteurs.filter(function (x) { return x.id !== m.id; });
+    document.title = titreSelon(m);
+    sauverMinuteur();
+    construireListe();
+  });
+}
+
+function terminer(m) {
+  if (m.type === "chrono") return;
+  m.etat = "termine";
+  m.restant = 0;
+  m.fin = null;
+  const texte = (m.nom || "Minuteur") + " terminé !";
+  document.title = "⏰ " + texte;
+  notifier(texte);
+  if (sonsActifs()) {
+    bipper();
+    // Rappel sonore tant que l'utilisateur n'intervient pas dans la page
+    arreterRappelBip();
+    rappelBip = setInterval(function () {
+      if (sonsActifs()) {
+        bipper();
+      } else {
+        arreterRappelBip();
+      }
+    }, 2000);
+  }
+  if (navigator.vibrate) navigator.vibrate([300, 150, 300]);
+}
+
+document.addEventListener("visibilitychange", function () {
+  if (!document.hidden) document.title = titreDuMode();
+});
+
+/* ---------- Affichage ---------- */
+function construireListe() {
+  refs.clear();
+  liste.innerHTML = "";
+  if (minuteurs.length === 0) {
+    const p = document.createElement("p");
+    p.className = "aucun";
+    p.textContent = "Aucun minuteur. Créez-en un ci-dessus.";
+    liste.appendChild(p);
+    return;
+  }
+  minuteurs.forEach(function (m) {
+    const carte = document.createElement("div");
+    carte.className = "carte" + (m.etat === "termine" ? " termine" : m.etat === "pause" ? " pause" : "");
+
+    const nom = document.createElement("div");
+    nom.className = "nom";
+    nom.textContent = m.type === "chrono"
+      ? "⏱️ " + (m.nom || "Chronomètre")
+      : (m.nom || "Minuteur");
+    carte.appendChild(nom);
+
+    const croix = document.createElement("button");
+    croix.type = "button";
+    croix.className = "croix";
+    croix.title = "Supprimer";
+    croix.textContent = "✕";
+    croix.addEventListener("click", function () { supprimer(m); });
+    carte.appendChild(croix);
+
+    const affichage = document.createElement("div");
+    affichage.className = "affichage";
+    carte.appendChild(affichage);
+
+    const barre = document.createElement("div");
+    barre.className = "barre";
+    const remplissage = document.createElement("div");
+    barre.appendChild(remplissage);
+    if (m.type === "chrono") barre.style.display = "none";
+    carte.appendChild(barre);
+
+    const actions = document.createElement("div");
+    actions.className = "actions";
+
+    const btnLecture = document.createElement("button");
+    btnLecture.type = "button";
+    btnLecture.addEventListener("click", function () { basculer(m); });
+    actions.appendChild(btnLecture);
+
+    const btnRetour = document.createElement("button");
+    btnRetour.type = "button";
+    btnRetour.className = "btn-retour";
+    btnRetour.textContent = m.type === "chrono" ? "🔄 Remettre à zéro" : "🔄 Réinit.";
+    btnRetour.addEventListener("click", function () { reinitialiser(m); });
+    actions.appendChild(btnRetour);
+
+    carte.appendChild(actions);
+    liste.appendChild(carte);
+
+    refs.set(m.id, { carte: carte, affichage: affichage, remplissage: remplissage, btnLecture: btnLecture });
+  });
+  rafraichir();
+}
+
+function rafraichir() {
+  let unLance = false;
+  minuteurs.forEach(function (m) {
+    const ref = refs.get(m.id);
+    if (!ref) return;
+    const restant = restantDe(m) || 0;
+    ref.affichage.textContent = m.type === "chrono" ? formaterEcoule(restant) : formaterDuree(restant);
+    if (m.type === "minuteur") {
+      ref.remplissage.style.width = (100 * (1 - restant / m.duree)) + "%";
+    }
+    if (m.etat === "lance") {
+      unLance = true;
+      ref.btnLecture.textContent = "⏸️ Pause";
+    } else if (m.etat === "termine") {
+      ref.btnLecture.textContent = "⏰ Terminé";
+      ref.btnLecture.disabled = true;
+    } else {
+      ref.btnLecture.textContent = "▶️ Démarrer";
+      ref.btnLecture.disabled = false;
+    }
+  });
+  if (unLance && !tictac) {
+    tictac = setInterval(tic, 250);
+  } else if (!unLance && tictac) {
+    clearInterval(tictac);
+    tictac = null;
+  }
+}
+
+function tic() {
+  let finArrivee = false;
+  minuteurs.forEach(function (m) {
+    if (m.type === "minuteur" && m.etat === "lance" && Date.now() >= m.fin) {
+      terminer(m);
+      finArrivee = true;
+    }
+  });
+  if (finArrivee) {
+    sauverMinuteur();
+    construireListe();
+  } else {
+    rafraichir();
+  }
+}
+
+/* ---------- Démarrage ---------- */
+document.getElementById("btnCreer").addEventListener("click", creer);
+["mHeures", "mMinutes", "mSecondes"].forEach(function (id) {
+  document.getElementById(id).addEventListener("keydown", function (e) {
+    if (e.key === "Enter") creer();
+  });
+});
+
+minuteurs = lireMinuteur();
+// Rattrapage : un minuteur écoulé pendant la fermeture passe à "terminé"
+minuteurs.forEach(function (m) {
+  if (m.type === "minuteur" && m.etat === "lance" && Date.now() >= m.fin) {
+    terminer(m);
+  }
+});
+sauverMinuteur();
+majChoixType();
+majBoutonSons();
+majBoutonNotifs();
+construireListe();
+
+// Enregistrement du Service Worker (ignoré proprement en local file://)
+if ("serviceWorker" in navigator && location.protocol !== "file:") {
+  navigator.serviceWorker.register("./sw.js").catch(function () {
+    // Échec d'enregistrement : l'app fonctionne quand même, juste sans mode hors ligne
+  });
+}
+</script>
+</body>
+</html>
