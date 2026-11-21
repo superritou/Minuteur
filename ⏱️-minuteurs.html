@@ -95,6 +95,19 @@ main {
   background: #3b4257;
 }
 #btnSons.actif, #btnNotifs.actif { background: #0f766e; }
+.case-verrou {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  font-size: 13px;
+  font-weight: bold;
+  color: #94a3b8;
+  cursor: pointer;
+  user-select: none;
+}
+.case-verrou input { accent-color: #14b8a6; width: 16px; height: 16px; cursor: pointer; }
+.case-verrou:hover { color: #e2e8f0; }
 #erreur {
   margin-top: 10px;
   color: #f43f5e;
@@ -274,6 +287,9 @@ footer { margin-top: 18px; font-size: 12px; color: #64748b; text-align: center; 
   <div class="groupe" style="margin-top:20px">
     <button id="btnSons" type="button">🔔 Son à la fin : activé</button>
     <button id="btnNotifs" type="button">📣 Notifications : à demander</button>
+    <label class="case-verrou" title="Empêche l'écran de s'éteindre tant qu'un minuteur actif tourne (batterie !)">
+      <input type="checkbox" id="verrouEcran"> 🖥️ Garder l'écran allumé pendant un minuteur actif
+    </label>
   </div>
   <div id="liste"></div>
 </main>
@@ -297,6 +313,7 @@ footer { margin-top: 18px; font-size: 12px; color: #64748b; text-align: center; 
 
 const CLE_MINUTEURS = "minuteur_minuteurs";
 const CLE_SONS = "minuteur_sons";
+const CLE_VERROU = "minuteur_verrou";
 const erreur = document.getElementById("erreur");
 const liste = document.getElementById("liste");
 const refs = new Map();
@@ -436,10 +453,22 @@ document.getElementById("btnNotifs").addEventListener("click", function () {
 
 function notifier(texte) {
   if (!("Notification" in window) || Notification.permission !== "granted") return;
-  try {
-    new Notification("⏰ " + texte, { tag: "minuteur-fin", renotify: true });
-  } catch (e) {
-    // Notification impossible : l'alerte dans le titre de l'onglet reste le repli
+  const options = { tag: "minuteur-fin", renotify: true };
+  // Chrome Android interdit le constructeur Notification en contexte de page :
+  // il faut passer par le Service Worker (déjà enregistré par l'app) via
+  // registration.showNotification(). Repli sur le constructeur classique
+  // si le SW n'est pas disponible (ex. local file://).
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.ready.then(function (inscription) {
+      inscription.showNotification("⏰ " + texte, options).catch(function () {
+        // SW présent mais refus : essai constructeur classique, puis abandon silencieux
+        try { new Notification("⏰ " + texte, options); } catch (e) {}
+      });
+    }).catch(function () {
+      try { new Notification("⏰ " + texte, options); } catch (e) {}
+    });
+  } else {
+    try { new Notification("⏰ " + texte, options); } catch (e) {}
   }
 }
 
@@ -624,8 +653,42 @@ function terminer(m) {
 }
 
 document.addEventListener("visibilitychange", function () {
-  if (!document.hidden) document.title = titreDuMode();
+  if (!document.hidden) {
+    document.title = titreDuMode();
+    majVerrouEcran();
+  }
 });
+
+/* ---------- Écran allumé (Wake Lock) ---------- */
+let verrouEcran = null;
+let unTimerActif = false;
+
+function activerVerrouEcran() {
+  if (!("wakeLock" in navigator) || verrouEcran) return;
+  navigator.wakeLock.request("screen").then(function (verrou) {
+    verrouEcran = verrou;
+    verrou.addEventListener("release", function () { verrouEcran = null; });
+  }).catch(function () {
+    // Refus (fichier local, batterie faible…) : l'app continue sans verrou
+  });
+}
+
+function libererVerrouEcran() {
+  if (verrouEcran) {
+    verrouEcran.release().catch(function () {});
+    verrouEcran = null;
+  }
+}
+
+function majVerrouEcran() {
+  const caseVerrou = document.getElementById("verrouEcran");
+  if (!caseVerrou.checked || !unTimerActif) {
+    libererVerrouEcran();
+    return;
+  }
+  // Re-demande le verrou : l'OS le relâche tout seul en arrière-plan
+  activerVerrouEcran();
+}
 
 /* ---------- Affichage ---------- */
 function construireListe() {
@@ -718,6 +781,9 @@ function rafraichir() {
     clearInterval(tictac);
     tictac = null;
   }
+  // Wake Lock : l'écran reste allumé si coché et qu'un timer tourne
+  unTimerActif = unLance;
+  majVerrouEcran();
 }
 
 function tic() {
@@ -745,6 +811,17 @@ document.getElementById("btnCreer").addEventListener("click", creer);
 });
 
 minuteurs = lireMinuteur();
+// Préférence Wake Lock (case « garder l'écran allumé »)
+const caseVerrou = document.getElementById("verrouEcran");
+caseVerrou.checked = localStorage.getItem(CLE_VERROU) !== "0";
+caseVerrou.disabled = !("wakeLock" in navigator);
+caseVerrou.title = "wakeLock" in navigator
+  ? "Empêche l'écran de s'éteindre tant qu'un minuteur actif tourne (batterie !)"
+  : "Garder l'écran allumé n'est pas pris en charge par ce navigateur";
+caseVerrou.addEventListener("change", function () {
+  localStorage.setItem(CLE_VERROU, caseVerrou.checked ? "1" : "0");
+  majVerrouEcran();
+});
 // Rattrapage : un minuteur écoulé pendant la fermeture passe à "terminé"
 minuteurs.forEach(function (m) {
   if (m.type === "minuteur" && m.etat === "lance" && Date.now() >= m.fin) {
